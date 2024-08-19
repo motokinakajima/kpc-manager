@@ -25,7 +25,7 @@ router.post('/', async (req, res) => {
 
     const { data, error } = await supabase.from('users').select('*').eq('email', mail);
 
-    if(data){
+    if(data && data.length > 0){
         if(data[0].email === mail && data[0].password === password){
             req.session.userID = data[0].userID;
             req.session.userName = data[0].name;

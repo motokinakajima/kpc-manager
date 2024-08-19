@@ -26,7 +26,8 @@
     "session-store": "^0.0.6",
     "sqlite3": "^5.1.7",
     "transliterate": "^1.0.1",
-    "transliteration": "^2.3.5"
+    "transliteration": "^2.3.5",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@flydotio/dockerfile": "^0.5.8",
