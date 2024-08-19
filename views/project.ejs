@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script>
+            if (window.innerWidth <= 768) {
+                document.write('<link rel="stylesheet" href="/stylesheets/mobile.css">');
+            } else {
+                document.write('<link rel="stylesheet" href="/stylesheets/desktop.css">');
+            }
+        </script>
+        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+        <title>Document</title>
+    </head>    
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <img src="/images/hayabusa2.png" alt="icon">
+            <% if(userID) { %>
+                <ul>
+                    <a href="/"><li>ホーム</li></a>
+                    <a href="/dashboard"><li>ダッシュボード</li></a>
+                    <a href="/project/projects"><li>プロジェクト一覧</li></a>
+                    <a href="/task/tasks"><li>タスク一覧</li></a>
+                    <a href="/profile?uid=<%= userID %>"><li>マイページ</li></a>
+                    <a href="/login/logout"><li>ログアウト</li></a>
+                </ul>
+            <% }else { %>
+                <ul>
+                    <a href="/"><li>ホーム</li></a>
+                    <a href="/login"><li>ログイン</li></a>
+                    <a href="/login/create"><li>アカウント作成</li></a>
+                </ul>
+            <% } %>
+        </div>
+
+        <div class="content">
+
+            <div class="breadcrumb">
+                <a href="/">ホーム</a>
+                <span>></span>
+                <a href="/dashboard">ダッシュボード</a>
+                <span>></span>
+                <span><%= projectData[0].name %></span>
+            </div>
+
+            <div class="section">
+                <h2><%= projectData[0].name %></h2>
+                <p><%= projectData[0].description %></p>
+                <div><a href="/project/edit-project?pid=<%= projectData[0].projectID %>"><button>プロジェクトを編集</button></a></div>
+            </div>
+
+            <div class="section">
+                <h2>タスク一覧</h2>
+                <% if(tasks && tasks.length > 0) { %>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>タスク名</th>
+                            <th>概要</th>
+                            <th>期限</th>
+                            <th>責任者</th>
+                            <th>進行度</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% tasks.forEach(row => { %>
+                            <tr>
+                                <td><a href="/task?tid=<%= row.taskID%>"><%= row.name %></a></td>
+                                <td><%= row.description %></td>
+                                <td><%= row.due %></td>
+                                <td><% users.forEach(user_row => { %><%= user_row.userID === row.responsible? user_row.name : ''%><% }) %></td>
+                                <td><% if(row.completion === 1){ %>
+                                    完了
+                                <% } else if(row.completion === 0){ %>
+                                    作業中
+                                <% } else { %>
+                                    開始前
+                                <% } %></td>
+                                <td><form action="/task/delete-task" method="post"><input type="hidden" name="taskID" value="<%= row.taskID%>"><button type="submit">削除</button></form></td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+                <form action="/project/create-task" method="get"><button type="submit">タスクを作成</button></form>
+                <div id="chart_div"></div>
+                <% }else { %>
+                    <p>このプロジェクトにはまだタスクは割り振られていません</p>
+                    <form action="/project/create-task" method="get"><button type="submit">タスクを作成</button></form>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</body>
+
+
+<script type="text/javascript">
+    let tasks = <%- JSON.stringify(tasks) %>;
+
+    google.charts.load('current', {'packages': ['gantt']});
+    google.charts.setOnLoadCallback(drawChart);
+
+    function daysToMilliseconds(days) {
+        return days * 24 * 60 * 60 * 1000;
+    }
+
+    function drawChart() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'Task ID');
+        data.addColumn('string', 'Task Name');
+        data.addColumn('string', 'Resource');
+        data.addColumn('date', 'Start Date');
+        data.addColumn('date', 'End Date');
+        data.addColumn('number', 'Duration');
+        data.addColumn('number', 'Percent Complete');
+        data.addColumn('string', 'Dependencies');
+    
+        let insertData = [];
+    
+        tasks.forEach(function (row) {
+            let startDate = new Date(row.start);
+            let endDate = new Date(row.due);
+    
+            if (isNaN(startDate.getTime())) {
+                console.error('Invalid start date:', row.start);
+                startDate = new Date();
+            }
+    
+            if (isNaN(endDate.getTime())) {
+                console.error('Invalid end date:', row.due);
+                endDate = new Date();
+            }
+    
+            let duration = endDate >= startDate ? (endDate - startDate) / (1000 * 60 * 60 * 24) : 0;
+            let rowData = [
+                row.taskID ? row.taskID.toString() : '',
+                row.name || 'Unnamed Task',
+                row.description || 'No Description',
+                startDate,
+                endDate,
+                duration * 24 * 60 * 60 * 1000,
+                0,
+                ''
+            ];
+            insertData.push(rowData);
+        });
+    
+        data.addRows(insertData);
+    
+        // Calculate dynamic height based on the number of tasks
+        let rowHeight = 30;  // Each row is 30 pixels high
+        let padding = 50;   // Padding for the chart (timeline, headers, etc.)
+        let chartHeight = insertData.length * rowHeight + padding; // Dynamic height calculation
+    
+        let containerWidth = document.querySelector('#chart_div').parentElement.offsetWidth * 0.95;
+    
+        var options = {
+            height: chartHeight,  // Use the dynamically calculated height
+            width: containerWidth, // Adjust width to fit the container
+            gantt: {
+                trackHeight: rowHeight // Adjust row height
+            }
+        };
+    
+        var chart = new google.visualization.Gantt(document.getElementById('chart_div'));
+    
+        chart.draw(data, options);
+    
+        google.visualization.events.addListener(chart, 'onmouseover', function() {
+            var tooltips = document.querySelectorAll('.google-visualization-tooltip');
+            tooltips.forEach(function (tooltip) {
+                tooltip.style.zIndex = '1000';  // Ensure tooltips appear above other elements
+            });
+        });
+    }
+</script>
+</html>
